@@ -111,7 +111,7 @@ const ROOMS = {
     '......................#####...',
     '..............................',
     '..........t.............C.....',
-    '#######...##^^^^^^^^##########',
+    '#######...##^^^^^^^###########',
     '#######...####################']},
   '2,1': { name: 'Sunken Shrine', hue: 195, map: [
     '#######...####################',
@@ -207,12 +207,12 @@ const ROOMS = {
 const TABLETS = {
   '0,0': 'You are the last Knight of Dawn, sworn to the buried sun. The Umbral Knight sealed its light beneath the earth. Climb toward the dawn and break the seal.',
   '1,0': 'A veil of living shadow. Darkness this thick yields only to light that moves faster than it can.',
-  '2,0': 'The old road ends in a field of thorns. Below, a rusted sentinel still guards the Sunstep.',
+  '2,0': 'The old road ends in thorns too wide to leap. Below, a rusted sentinel guards the Sunstep. With it, jump toward the far side and blink across in mid-air.',
   '3,0': 'Past the veil rest the Gilded Wings. With them, no wall is too high to climb.',
   '3,-2': 'Two braziers sleep before the throne. Wake them with thrown light and the Gate of Dusk will open.',
 };
 const ABIL = {
-  dash:  { name: 'Sunstep',       key: 'C or Shift',      color: '#ffd36a', text: 'Blink forward as a streak of light, even in mid-air. Shadow veils cannot stop you.' },
+  dash:  { name: 'Sunstep',       key: 'C or Shift',      color: '#ffd36a', text: 'Blink forward as a streak of light, even in mid-air. Jump at the Chasm of Ash and Sunstep at the top of your leap. Shadow veils cannot stop you.' },
   wings: { name: 'Gilded Wings',  key: 'Jump on a wall',  color: '#ffe9a8', text: 'Slide down walls and leap away from them. Climb what feet alone cannot.' },
   lance: { name: 'Lance of Dawn', key: 'Slash',           color: '#fff3c4', text: 'Every slash now hurls a lance of light. Lances pierce enemies and wake sleeping braziers.' },
 };
@@ -553,7 +553,17 @@ function goRoom(dx, dy){
   loadRoom(k);
   if (dx === 1) P.x = 2;
   if (dx === -1) P.x = W * T - P.w - 2;
-  if (dy === -1) { P.y = H * T - P.h - 2; P.vy = -13.5; }
+  if (dy === -1) {
+    P.y = H * T - P.h - 2; P.vy = -13.5;
+    // climbing up through a floor opening: step out onto the nearest ledge beside it
+    const row = H - 2, tx0 = Math.floor((P.x + P.w / 2) / T);
+    let ledge = null;
+    for (let d = 1; d <= 4 && ledge === null; d++) for (const sd of [-1, 1]) {
+      const tx = tx0 + sd * d;
+      if (ledge === null && tileAt(tx, row) === '#' && tileAt(tx, row - 1) === '.') ledge = tx;
+    }
+    if (ledge !== null) { P.x = ledge * T + (T - P.w) / 2; P.y = row * T - P.h; P.vy = -5; P.face = ledge < tx0 ? -1 : 1; burst(P.x + P.w / 2, P.y + P.h, 10, '#ffe9a8', 2.5, 24); }
+  }
   if (dy === 1) P.y = 2;
   P.safeX = P.x; P.safeY = P.y; P.canDash = true;
 }
@@ -605,7 +615,7 @@ function updatePlayer(){
 
   // Sunstep
   if (pressed.dash && P.has.dash && P.dashCd === 0 && P.canDash && P.healT === 0) {
-    P.dashT = 12; P.dashCd = 26; if (!P.onGround) P.canDash = false;
+    P.dashT = 14; P.dashCd = 26; if (!P.onGround) P.canDash = false;
     if (wallDir) P.face = -wallDir; else if (inX) P.face = inX;
     sfx(620, 0.18, 'triangle', 0.04, 1400);
   }
@@ -625,7 +635,7 @@ function updatePlayer(){
 
   let dx, dy, dashing = false;
   if (P.dashT > 0) {
-    dashing = true; P.vy = 0; dx = P.face * 10.5; dy = 0;
+    dashing = true; P.vy = 0; dx = P.face * 11; dy = 0;
     particles.push({ x: P.x + P.w / 2, y: P.y + P.h / 2, vx: 0, vy: 0, life: 16, max: 16, color: '#ffd36a', grav: 0, size: 10 });
   } else {
     const target = P.healT ? 0 : inX * 4.2;
