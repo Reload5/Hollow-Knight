@@ -11,10 +11,12 @@
   canvas{background:#090a14;box-shadow:0 0 60px #000}
   #tc{display:none;position:fixed;left:0;right:0;bottom:0;padding:12px max(16px,env(safe-area-inset-right,0px)) calc(14px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));justify-content:space-between;align-items:flex-end;pointer-events:none}
   body.touch #tc{display:flex}
-  #tc .pad{display:grid;grid-template-columns:repeat(3,58px);grid-template-rows:repeat(2,58px);gap:6px;pointer-events:auto}
+  #tc .pad,#tc .act{opacity:.1;transition:opacity .15s}
+  #tc .pad.on,#tc .act:has(button.on){opacity:.35}
+  #tc .stick{position:relative;width:132px;height:132px;border-radius:50%;pointer-events:auto;touch-action:none;border:1.5px solid rgba(255,215,122,.6);background:radial-gradient(circle,rgba(255,226,150,.18),rgba(14,12,24,.7) 72%);box-shadow:0 4px 18px rgba(0,0,0,.45)}
+  #tc .knob{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;background:radial-gradient(circle at 50% 35%,#fff3c4,#d9a441 70%);box-shadow:0 0 16px rgba(255,200,100,.6);pointer-events:none}
   #tc .act{position:relative;width:196px;height:172px;pointer-events:auto}
   #tc button{border:1.5px solid rgba(255,215,122,.38);background:radial-gradient(circle at 50% 30%,rgba(255,226,150,.2),rgba(14,12,24,.6) 70%);color:#fbefd0;font:600 10px Georgia,serif;letter-spacing:.08em;text-transform:uppercase;touch-action:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-shadow:0 4px 18px rgba(0,0,0,.45),inset 0 0 12px rgba(255,214,110,.08);transition:transform .06s,background .06s;-webkit-tap-highlight-color:transparent;padding:0}
-  #tc .pad button{border-radius:16px;font-size:18px}
   #tc .act button{position:absolute;border-radius:50%}
   #tc button.on{background:radial-gradient(circle,rgba(255,220,130,.65),rgba(255,170,70,.25) 75%);transform:scale(.93);box-shadow:0 0 22px rgba(255,200,100,.45)}
   #tc .b-jump{width:80px;height:80px;right:0;bottom:0}
@@ -27,10 +29,7 @@
 <body>
 <div id="wrap"><canvas id="c"></canvas></div>
 <div id="tc">
-  <div class="pad">
-    <span></span><button data-k="up" aria-label="Up">▲</button><span></span>
-    <button data-k="left" aria-label="Left">◀</button><button data-k="down" aria-label="Down">▼</button><button data-k="right" aria-label="Right">▶</button>
-  </div>
+  <div class="pad"><div class="stick" aria-label="Movement joystick"><div class="knob"></div></div></div>
   <div class="act">
     <button class="b-heal" data-k="heal"><svg viewBox="0 0 24 24"><path d="M12 3c3 4 6 6.5 6 10.5a6 6 0 0 1-12 0C6 9.5 9 7 12 3z"/></svg>Heal</button>
     <button class="b-dash" data-k="dash"><svg viewBox="0 0 24 24"><path d="M5 6l6 6-6 6M13 6l6 6-6 6"/></svg>Dash</button>
@@ -238,6 +237,24 @@ document.querySelectorAll('#tc button').forEach(b => {
   const up = () => { b.classList.remove('on'); release(k); };
   b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
 });
+{
+  const stick = document.querySelector('#tc .stick'), knob = stick.querySelector('.knob'), pad = stick.parentElement, MAXR = 46;
+  let pid = null;
+  const setDir = (k, on) => { if (on) { if (!keys[k]) press(k); } else release(k); };
+  const update = e => {
+    const r = stick.getBoundingClientRect();
+    let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+    const d = Math.hypot(dx, dy); if (d > MAXR) { dx *= MAXR / d; dy *= MAXR / d; }
+    knob.style.transform = `translate(${dx}px,${dy}px)`;
+    const nx = dx / MAXR, ny = dy / MAXR;
+    setDir('right', nx > 0.35); setDir('left', nx < -0.35);
+    setDir('up', ny < -0.55); setDir('down', ny > 0.55);
+  };
+  const end = () => { pid = null; pad.classList.remove('on'); knob.style.transform = ''; ['left', 'right', 'up', 'down'].forEach(release); };
+  stick.addEventListener('pointerdown', e => { e.preventDefault(); pid = e.pointerId; stick.setPointerCapture(pid); pad.classList.add('on'); update(e); });
+  stick.addEventListener('pointermove', e => { if (e.pointerId === pid) update(e); });
+  stick.addEventListener('pointerup', end); stick.addEventListener('pointercancel', end); stick.addEventListener('lostpointercapture', end);
+}
 cv.addEventListener('pointerdown', () => { press('start'); setTimeout(() => release('start'), 60); });
 
 /* ===================== AUDIO ===================== */
@@ -502,7 +519,7 @@ function newGame(){
   spawn = { key: '0,0', x: room.start.x, y: room.start.y };
   placeAtSpawn();
   msg = { text: document.body.classList.contains('touch')
-    ? 'Hold ▲ or ▼ while slashing to aim. Hold Heal to turn 3 light into health. Press ▲ to read stones and rest at benches.'
+    ? 'Push the stick up or down while slashing to aim. Hold Heal to turn 3 light into health. Push the stick up to read stones and rest at benches.'
     : 'Arrows / WASD move · Z jump · X slash (aim with ↑ / ↓) · hold F to heal · ↑ to read stones and rest at benches', t: 480 };
 }
 function continueGame(s){
@@ -1440,7 +1457,7 @@ function drawTitle(){
   });
   ctx.fillStyle = '#7d7466'; ctx.font = '15px Georgia';
   const touch = document.body.classList.contains('touch');
-  ctx.fillText(touch ? '▲ ▼ choose · tap the screen to confirm' : '↑ ↓ choose · Enter / Z / tap to confirm', VW / 2, 300 + opts.length * 40 + 6);
+  ctx.fillText(touch ? 'Stick up / down to choose · tap the screen to confirm' : '↑ ↓ choose · Enter / Z / tap to confirm', VW / 2, 300 + opts.length * 40 + 6);
   if (!touch) {
     ctx.fillText('Move: Arrows / WASD   Jump: Z / Space   Slash: X / J   Heal: hold F', VW / 2, 470);
     ctx.fillText('Hold ↑ or ↓ while slashing to aim. Strike down onto foes or thorns to bounce.', VW / 2, 494);
